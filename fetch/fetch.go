@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -22,18 +23,25 @@ func New() *NHL {
 // returns the most recent games by default
 // TODO: add options to provide date range
 func (n *NHL) GetSchedule() error {
-	resp, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
+	r, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer r.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(r.Body).Decode(&n.Schedule)
 	if err != nil {
-		return err
+		return fmt.Errorf("error parsing body: %+v", err)
 	}
 
-	fmt.Printf("DEBUG -- body is: %s\n", body)
+	for _, x := range n.Schedule.Dates {
+		for idx, y := range x.Games {
+			fmt.Printf("Game %d: %s\n", idx+1, y.Venue.Name)
+			fmt.Printf("Home: %s -- %d\n", y.Teams.Home.Team.Name, y.Teams.Home.Score)
+			fmt.Printf("Away: %s -- %d\n", y.Teams.Away.Team.Name, y.Teams.Away.Score)
+			fmt.Printf("\n\n")
+		}
+	}
 
 	return nil
 }
