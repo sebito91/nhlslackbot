@@ -9,13 +9,19 @@ import (
 // APIURL is the default API root for NHL stats
 const APIURL = "https://statsapi.web.nhl.com/api/v1/"
 
-// Schedule calls out to the NHL API listed at APIURL
+// New returns a new instance of the NHL struct, the default
+// type for our score processing
+func New() *NHL {
+	return &NHL{}
+}
+
+// GetSchedule calls out to the NHL API listed at APIURL
 // and returns a formatted JSON blob of stats
 //
 // This function calls the 'schedule' endpoint which
 // returns the most recent games by default
 // TODO: add options to extend dates
-func Schedule() error {
+func (n *NHL) GetSchedule() error {
 	resp, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
 	if err != nil {
 		return err

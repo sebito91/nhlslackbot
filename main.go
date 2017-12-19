@@ -12,7 +12,9 @@ import (
 func main() {
 	fmt.Printf("this is a fun project\n")
 
-	if err := fetch.Schedule(); err != nil {
+	n := fetch.New()
+
+	if err := n.GetSchedule(); err != nil {
 		log.Fatalf("error in fetch schedule: %+v", err)
 	}
 }
