@@ -20,9 +20,51 @@ func New() *NHL {
 //
 // This function calls the 'schedule' endpoint which
 // returns the most recent games by default
-// TODO: add options to extend dates
+// TODO: add options to provide date range
 func (n *NHL) GetSchedule() error {
 	resp, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("DEBUG -- body is: %s\n", body)
+
+	return nil
+}
+
+// GetTeams calls the 'teams' endpoint and retrieves the detailed
+// information for current teams in the league
+//
+// TODO: add support for previous seasons
+func (n *NHL) GetTeams() error {
+	resp, err := http.Get(fmt.Sprintf("%s/teams", APIURL))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("DEBUG -- body is: %s\n", body)
+
+	return nil
+}
+
+// GetTeam calls the 'teams' endpoint for a specific ID and retrieves
+// the detailed information for current team
+//
+// TODO: add support for previous seasons
+func (n *NHL) GetTeam(id int) error {
+	resp, err := http.Get(fmt.Sprintf("%s/teams/%d", APIURL, id))
 	if err != nil {
 		return err
 	}

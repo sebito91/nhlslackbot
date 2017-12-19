@@ -1,3 +1,5 @@
+// +build small
+
 package fetch
 
 var payload = `
