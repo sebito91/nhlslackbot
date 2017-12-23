@@ -3,10 +3,10 @@ package post
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/nlopes/slack"
-	"go.uber.org/zap"
 )
 
 // Slack is the primary struct for our slackbot
@@ -17,7 +17,7 @@ type Slack struct {
 	User   string
 	UserID string
 
-	Logger *zap.SugaredLogger
+	Logger *log.Logger
 
 	Client *slack.Client
 }
@@ -44,29 +44,32 @@ func (s *Slack) Run(ctx context.Context) error {
 	s.User = authTest.User
 	s.UserID = authTest.UserID
 
+	s.Logger.Printf("Bot is now registered as %s (%s)\n", s.User, s.UserID)
+
 	go s.run(ctx)
 	return nil
 }
 
 func (s *Slack) run(ctx context.Context) {
+	slack.SetLogger(s.Logger)
 	s.Client.SetDebug(true)
 
 	rtm := s.Client.NewRTM()
 	go rtm.ManageConnection()
 
 	for msg := range rtm.IncomingEvents {
-		s.Logger.Info("Event Received: ")
+		s.Logger.Printf("Event Received: ")
 
 		switch ev := msg.Data.(type) {
 		case *slack.MessageEvent:
-			s.Logger.Infof("Message: %v\n", ev)
+			s.Logger.Printf("Message: %v\n", ev)
 		case *slack.PresenceChangeEvent:
-			s.Logger.Infof("Presence Change: %v\n", ev)
+			s.Logger.Printf("Presence Change: %v\n", ev)
 		case *slack.RTMError:
-			s.Logger.Infof("Error: %s\n", ev.Error())
+			s.Logger.Printf("Error: %s\n", ev.Error())
 		default:
 			// Ignore other events..
-			s.Logger.Infof("Unexpected: %v\n", msg.Data)
+			//			s.Logger.Infof("Unexpected: %v\n", msg.Data)
 		}
 	}
 }

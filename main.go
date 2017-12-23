@@ -3,11 +3,12 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
 
 	"github.com/sebito91/nhlslackbot/fetch"
 	"github.com/sebito91/nhlslackbot/post"
-	"go.uber.org/zap"
 
 	_ "expvar"
 	"net/http"
@@ -15,28 +16,25 @@ import (
 )
 
 func main() {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatal("could not instantiate logger")
-	}
-	defer logger.Sync()
-	lg := logger.Sugar()
-
+	lg := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
 	n := fetch.New()
 
 	if err := n.GetSchedule(); err != nil {
-		lg.Fatalf("error in fetch schedule: %+v", err)
+		lg.Fatalf("[ERROR] error in fetch schedule: %+v", err)
 	}
 
-	lg.Infof("got the schedule, doneskii -- %s", "yoyo")
+	lg.Printf("[DEBUG] got the schedule, doneskii -- %s", "yoyo")
 
-	//	ctx := context.Background()
+	ctx := context.Background()
 
 	s, err := post.New()
 	if err != nil {
 		lg.Fatal(err)
 	}
 	s.Logger = lg
+	if err := s.Run(ctx); err != nil {
+		lg.Fatal(err)
+	}
 
 	//	var wg sync.WaitGroup
 	//	wg.Add(1)
