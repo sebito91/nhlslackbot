@@ -32,16 +32,11 @@ func main() {
 		lg.Fatal(err)
 	}
 	s.Logger = lg
+
 	if err := s.Run(ctx); err != nil {
 		lg.Fatal(err)
 	}
 
-	//	var wg sync.WaitGroup
-	//	wg.Add(1)
-	//
-	//	s := post.New()
-	//	go s.Run()
-	//	wg.Wait()
-
+	http.HandleFunc("/", post.IndexHandler)
 	lg.Fatal(http.ListenAndServe(":9191", nil))
 }

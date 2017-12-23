@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/nlopes/slack"
 )
@@ -62,14 +63,27 @@ func (s *Slack) run(ctx context.Context) {
 
 		switch ev := msg.Data.(type) {
 		case *slack.MessageEvent:
-			s.Logger.Printf("Message: %v\n", ev)
+			if len(ev.User) == 0 {
+				continue
+			}
+
+			// check if we have a DM, or standard channel post
+			direct := strings.HasPrefix(ev.Msg.Channel, "D")
+
+			if !direct && !strings.Contains(ev.Msg.Text, "@"+s.UserID) {
+				// msg not for us!
+				continue
+			}
+
+			s.Logger.Printf("Message: %v\n", ev.Msg)
+
 		case *slack.PresenceChangeEvent:
 			s.Logger.Printf("Presence Change: %v\n", ev)
 		case *slack.RTMError:
 			s.Logger.Printf("Error: %s\n", ev.Error())
 		default:
 			// Ignore other events..
-			//			s.Logger.Infof("Unexpected: %v\n", msg.Data)
+			// s.Logger.Printf("Unexpected: %v\n", msg.Data)
 		}
 	}
 }
