@@ -12,6 +12,10 @@ import (
 	"github.com/nlopes/slack"
 )
 
+// PostMap is a global map to handle callbacks depending on the provided user
+// This mapping stores off the userID to reply to
+var PostMap map[string]string
+
 // IndexHandler returns data to the default port
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -23,7 +27,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("%v", `¯\_(ツ)_/¯`)))
+		w.Write([]byte(fmt.Sprintf("%v", `¯\_(ツ)_/¯ GET`)))
 		return
 	case "POST":
 		w.WriteHeader(http.StatusMovedPermanently)
@@ -47,7 +51,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	case "POST":
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("%v", `¯\_(ツ)_/¯`)))
+		w.Write([]byte(fmt.Sprintf("%v", `¯\_(ツ)_/¯ POST`)))
 		return
 	default:
 	}
@@ -62,6 +66,42 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 // a specific game which we could present back
 func (s *Slack) askIntent(ev *slack.MessageEvent) error {
 	s.Logger.Printf("[DEBUG] would print out fun here")
+
+	params := slack.NewPostEphemeralParameters()
+	attachment := slack.Attachment{
+		Text:       "Would you like to see the most recent scores?",
+		CallbackID: fmt.Sprintf("ask_%s", ev.User),
+		Color:      "#666666",
+		Actions: []slack.AttachmentAction{
+			slack.AttachmentAction{
+				Name:  "action",
+				Text:  "No thanks!",
+				Type:  "button",
+				Value: "no",
+			},
+			slack.AttachmentAction{
+				Name:  "action",
+				Text:  "Yes, please!",
+				Type:  "button",
+				Value: "yes",
+			},
+		},
+	}
+
+	params.Attachments = []slack.Attachment{attachment}
+	params.User = ev.User
+	params.AsUser = true
+
+	_, err := s.Client.PostEphemeral(
+		ev.Channel,
+		ev.User,
+		slack.MsgOptionAttachments(params.Attachments...),
+		slack.MsgOptionPostEphemeralParameters(params),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
