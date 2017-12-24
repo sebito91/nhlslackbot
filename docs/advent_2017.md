@@ -194,15 +194,22 @@ If the user selects `No, thanks!` then we reply with a basic message:
 
 no.png
 
-If the user selects `Yes, please!` then we grab the scores:
-
-yes.png
-
 This part of the interaction is precisely where the `ngrok` endpoint comes into play. The user's interaction
 is not directly with our code, but instead with slack itself. The message and interaction is passed through
 slack and on to us at the redirect URL we specified earlier, in my case `https://sebtest.ngrok.io` which
 routes to our internal `localhost:9191` interface, and from there to our `postHandler` as defined in our
 webapp router.
+
+The tricky part here is to process the `payload` portion of the JSON response from the API. The `POST` that
+slack returns back to our URL is a payload form that contains a bevy of information for our interaction. In
+this case, the user's response (either `Yes` or `No`) as well as a `callbackID` which we actually passed
+in our original mesage prompt to the user! This is incredibly useful, especially as you have more and more 
+users interacting with your bot as you can specify unique actions based on the trigger. For example,
+if the user selects `Yes` we could send subsequent ephemeral messages to ask for a specific date, or maybe
+a certain team? We could even define the callback value as a key to a function map that would then trigger
+some kind of other workflow altogether (like posting to a blog resource, or checking DB credentials, etc). The
+options are indeed endless, but for the scope of this contrived example we just stick
+to the scores from last night.
 
 ```go
 func postHandler(w http.ResponseWriter, r *http.Request) {
@@ -258,4 +265,66 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 }
 ``` 
 
-### The NHL API
+A key component to note here is the `http` response code; if you do not specify the `http.StatusOK` value
+in your prompt back to the API, the error message you may want to convey to the user gets eaten by the system. 
+The default slackbot will absorb that message and reply to you (with an `ephemeral` message no less) with the 
+status code, but not the messages. Long story short, whatever message you'd like to actually send back to
+the requester should have an `http.StatusOK` header.
+
+Lastly, if our user has selected the `Yes` option we call out to our NHL stats api and process the results
+for the user!
+
+```go
+// grabStats will process the information from the API and return the data to
+// our user!
+func grabStats(w http.ResponseWriter, r *http.Request) {
+    n := fetch.New()
+
+    buf, err := n.GetSchedule()
+    if err != nil {
+        w.WriteHeader(http.StatusNoContent)
+        w.Write([]byte(fmt.Sprintf("error processing schedule; %v", err)))
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    w.Write(buf)
+}
+
+// GetSchedule calls out to the NHL API listed at APIURL
+// and returns a formatted JSON blob of stats
+//
+// This function calls the 'schedule' endpoint which
+// returns the most recent games by default
+// TODO: add options to provide date range
+func (n *NHL) GetSchedule() ([]byte, error) {
+    var buf bytes.Buffer
+
+    r, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
+    if err != nil {
+        return buf.Bytes(), err
+    }
+    defer r.Body.Close()
+
+    err = json.NewDecoder(r.Body).Decode(&n.Schedule)
+    if err != nil {
+        return buf.Bytes(), fmt.Errorf("error parsing body: %+v", err)
+    }
+
+    for _, x := range n.Schedule.Dates {
+        for idx, y := range x.Games {
+            buf.WriteString(fmt.Sprintf("Game %d: %s\n", idx+1, y.Venue.Name))
+            buf.WriteString(fmt.Sprintf("Home: %s -- %d\n", y.Teams.Home.Team.Name, y.Teams.Home.Score))
+            buf.WriteString(fmt.Sprintf("Away: %s -- %d\n\n", y.Teams.Away.Team.Name, y.Teams.Away.Score))
+        }
+    }
+
+    return buf.Bytes(), nil
+}
+```
+
+Sample output below...
+
+yes.png
+
+Congratulations, you've now delivered an ephemeral payload to your slack user's request!
