@@ -5,26 +5,17 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 
-	"github.com/sebito91/nhlslackbot/fetch"
 	"github.com/sebito91/nhlslackbot/post"
 
 	_ "expvar"
-	"net/http"
 	_ "net/http/pprof"
 )
 
 func main() {
 	lg := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-	n := fetch.New()
-
-	if err := n.GetSchedule(); err != nil {
-		lg.Fatalf("[ERROR] error in fetch schedule: %+v", err)
-	}
-
-	lg.Printf("[DEBUG] got the schedule, doneskii -- %s", "yoyo")
-
 	ctx := context.Background()
 
 	s, err := post.New()

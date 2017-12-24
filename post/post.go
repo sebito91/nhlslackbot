@@ -53,14 +53,13 @@ func (s *Slack) Run(ctx context.Context) error {
 
 func (s *Slack) run(ctx context.Context) {
 	slack.SetLogger(s.Logger)
-	s.Client.SetDebug(true)
+	//	s.Client.SetDebug(true)
 
 	rtm := s.Client.NewRTM()
 	go rtm.ManageConnection()
 
+	s.Logger.Printf("[INFO]  now listening for incoming messages...")
 	for msg := range rtm.IncomingEvents {
-		s.Logger.Printf("[DEBUG] event received: ")
-
 		switch ev := msg.Data.(type) {
 		case *slack.MessageEvent:
 			if len(ev.User) == 0 {
@@ -75,20 +74,20 @@ func (s *Slack) run(ctx context.Context) {
 				continue
 			}
 
-			s.Logger.Printf("[DEBUG] message: %v\n", ev.Msg)
+			user, err := s.Client.GetUserInfo(ev.User)
+			if err != nil {
+				s.Logger.Printf("[WARN]  could not grab user information: %s", ev.User)
+				continue
+			}
 
-			err := s.askIntent(ev)
+			s.Logger.Printf("[DEBUG] received message from %s (%s)\n", user.Profile.RealName, ev.User)
+
+			err = s.askIntent(ev)
 			if err != nil {
 				s.Logger.Printf("[ERROR] posting ephemeral reply to user (%s): %+v\n", ev.User, err)
 			}
-
-		case *slack.PresenceChangeEvent:
-			s.Logger.Printf("[DEBUG] presence change: %v\n", ev)
 		case *slack.RTMError:
 			s.Logger.Printf("[ERROR] %s\n", ev.Error())
-		default:
-			// Ignore other events..
-			// s.Logger.Printf("Unexpected: %v\n", msg.Data)
 		}
 	}
 }

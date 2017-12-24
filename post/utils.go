@@ -1,20 +1,28 @@
 package post
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"strings"
+	"sync"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/nlopes/slack"
+	"github.com/sebito91/nhlslackbot/fetch"
 )
 
 // PostMap is a global map to handle callbacks depending on the provided user
 // This mapping stores off the userID to reply to
 var PostMap map[string]string
+
+// PostLock is the complement for the global PostMap to ensure concurrent
+// access doesn't race
+var PostLock sync.RWMutex
 
 // IndexHandler returns data to the default port
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -44,18 +52,49 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch r.Method {
-	case "GET":
-		w.WriteHeader(http.StatusMovedPermanently)
-		w.Write([]byte("cannot get this endpoint"))
+	if r.Body == nil {
+		w.WriteHeader(http.StatusNotAcceptable)
+		w.Write([]byte("empty body"))
 		return
-	case "POST":
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("%v", `¯\_(ツ)_/¯ POST`)))
+	}
+	defer r.Body.Close()
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusGone)
+		w.Write([]byte("could not parse body"))
 		return
-	default:
 	}
 
+	// slack API calls the data POST a 'payload'
+	reply := r.PostFormValue("payload")
+	if len(reply) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		w.Write([]byte("could not find payload"))
+		return
+	}
+
+	var payload slack.AttachmentActionCallback
+	err = json.NewDecoder(strings.NewReader(reply)).Decode(&payload)
+	if err != nil {
+		w.WriteHeader(http.StatusGone)
+		w.Write([]byte("could not process payload"))
+		return
+	}
+
+	action := payload.Actions[0].Value
+	switch action {
+	case "yes":
+		grabStats(w, r)
+	case "no":
+		w.Write([]byte("No worries, let me know later on if you do!"))
+	default:
+		w.WriteHeader(http.StatusNotAcceptable)
+		w.Write([]byte(fmt.Sprintf("could not process callback: %s", action)))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // askIntent is the initial request back to user if they'd like to see
@@ -65,8 +104,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 // we would ask users to specify a date, or maybe a team, or even
 // a specific game which we could present back
 func (s *Slack) askIntent(ev *slack.MessageEvent) error {
-	s.Logger.Printf("[DEBUG] would print out fun here")
-
 	params := slack.NewPostEphemeralParameters()
 	attachment := slack.Attachment{
 		Text:       "Would you like to see the most recent scores?",
@@ -143,4 +180,20 @@ func (s *Slack) NewHandler() (http.Handler, error) {
 	})
 
 	return r, nil
+}
+
+// grabStats will process the information from the API and return the data to
+// our user!
+func grabStats(w http.ResponseWriter, r *http.Request) {
+	n := fetch.New()
+
+	buf, err := n.GetSchedule()
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		w.Write([]byte(fmt.Sprintf("error processing schedule; %v", err)))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(buf)
 }

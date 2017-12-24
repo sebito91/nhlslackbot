@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -22,28 +23,29 @@ func New() *NHL {
 // This function calls the 'schedule' endpoint which
 // returns the most recent games by default
 // TODO: add options to provide date range
-func (n *NHL) GetSchedule() error {
+func (n *NHL) GetSchedule() ([]byte, error) {
+	var buf bytes.Buffer
+
 	r, err := http.Get(fmt.Sprintf("%s/schedule", APIURL))
 	if err != nil {
-		return err
+		return buf.Bytes(), err
 	}
 	defer r.Body.Close()
 
 	err = json.NewDecoder(r.Body).Decode(&n.Schedule)
 	if err != nil {
-		return fmt.Errorf("error parsing body: %+v", err)
+		return buf.Bytes(), fmt.Errorf("error parsing body: %+v", err)
 	}
 
 	for _, x := range n.Schedule.Dates {
 		for idx, y := range x.Games {
-			fmt.Printf("Game %d: %s\n", idx+1, y.Venue.Name)
-			fmt.Printf("Home: %s -- %d\n", y.Teams.Home.Team.Name, y.Teams.Home.Score)
-			fmt.Printf("Away: %s -- %d\n", y.Teams.Away.Team.Name, y.Teams.Away.Score)
-			fmt.Printf("\n\n")
+			buf.WriteString(fmt.Sprintf("Game %d: %s\n", idx+1, y.Venue.Name))
+			buf.WriteString(fmt.Sprintf("Home: %s -- %d\n", y.Teams.Home.Team.Name, y.Teams.Home.Score))
+			buf.WriteString(fmt.Sprintf("Away: %s -- %d\n\n", y.Teams.Away.Team.Name, y.Teams.Away.Score))
 		}
 	}
 
-	return nil
+	return buf.Bytes(), nil
 }
 
 // GetTeams calls the 'teams' endpoint and retrieves the detailed
