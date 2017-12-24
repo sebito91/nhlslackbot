@@ -134,5 +134,128 @@ the docs:
 
 > This method posts an ephemeral message, which is visible only to the assigned user in a specific public channel, private channel, or private conversation.
 
+With that in mind, we set up the initial response payload using the [attachments](https://api.slack.com/docs/message-attachments) spec from the API, defining a set of actions that the user is able to choose. For this
+part of the conversation the user must reply `Yes` or `No` for whether they'd like us to retrieve the most
+recent scores. If `No`, we reply with a basic note and continue listening; if `Yes` then let's retrieve the 
+scores!
+
+```go
+// askIntent is the initial request back to user if they'd like to see
+// the scores from the most recent slate of games
+//
+// NOTE: This is a contrived example of the functionality, but ideally here
+// we would ask users to specify a date, or maybe a team, or even
+// a specific game which we could present back
+func (s *Slack) askIntent(ev *slack.MessageEvent) error {
+    params := slack.NewPostEphemeralParameters()
+    attachment := slack.Attachment{
+        Text:       "Would you like to see the most recent scores?",
+        CallbackID: fmt.Sprintf("ask_%s", ev.User),
+        Color:      "#666666",
+        Actions: []slack.AttachmentAction{
+            slack.AttachmentAction{
+                Name:  "action",
+                Text:  "No thanks!",
+                Type:  "button",
+                Value: "no",
+            },
+            slack.AttachmentAction{
+                Name:  "action",
+                Text:  "Yes, please!",
+                Type:  "button",
+                Value: "yes",
+            },
+        },
+    }
+
+    params.Attachments = []slack.Attachment{attachment}
+    params.User = ev.User
+    params.AsUser = true
+
+    _, err := s.Client.PostEphemeral(
+        ev.Channel,
+        ev.User,
+        slack.MsgOptionAttachments(params.Attachments...),
+        slack.MsgOptionPostEphemeralParameters(params),
+    )
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+```
+
+The attachments in the snippet above present the user with the following dialog:
+
+options.png
+
+If the user selects `No, thanks!` then we reply with a basic message:
+
+no.png
+
+If the user selects `Yes, please!` then we grab the scores:
+
+yes.png
+
+This part of the interaction is precisely where the `ngrok` endpoint comes into play. The user's interaction
+is not directly with our code, but instead with slack itself. The message and interaction is passed through
+slack and on to us at the redirect URL we specified earlier, in my case `https://sebtest.ngrok.io` which
+routes to our internal `localhost:9191` interface, and from there to our `postHandler` as defined in our
+webapp router.
+
+```go
+func postHandler(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path != "/" {
+        w.WriteHeader(http.StatusNotFound)
+        w.Write([]byte(fmt.Sprintf("incorrect path: %s", r.URL.Path)))
+        return
+    }
+
+    if r.Body == nil {
+        w.WriteHeader(http.StatusNotAcceptable)
+        w.Write([]byte("empty body"))
+        return
+    }
+    defer r.Body.Close()
+
+    err := r.ParseForm()
+    if err != nil {
+        w.WriteHeader(http.StatusGone)
+        w.Write([]byte("could not parse body"))
+        return
+    }
+
+    // slack API calls the data POST a 'payload'
+    reply := r.PostFormValue("payload")
+    if len(reply) == 0 {
+        w.WriteHeader(http.StatusNoContent)
+        w.Write([]byte("could not find payload"))
+        return
+    }
+
+    var payload slack.AttachmentActionCallback
+    err = json.NewDecoder(strings.NewReader(reply)).Decode(&payload)
+    if err != nil {
+        w.WriteHeader(http.StatusGone)
+        w.Write([]byte("could not process payload"))
+        return
+    }
+
+    action := payload.Actions[0].Value
+    switch action {
+    case "yes":
+        grabStats(w, r)
+    case "no":
+        w.Write([]byte("No worries, let me know later on if you do!"))
+    default:
+        w.WriteHeader(http.StatusNotAcceptable)
+        w.Write([]byte(fmt.Sprintf("could not process callback: %s", action)))
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+}
+``` 
 
 ### The NHL API
