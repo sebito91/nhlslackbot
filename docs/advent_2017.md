@@ -147,7 +147,7 @@ scores!
 // we would ask users to specify a date, or maybe a team, or even
 // a specific game which we could present back
 func (s *Slack) askIntent(ev *slack.MessageEvent) error {
-    params := slack.NewPostEphemeralParameters()
+    params := slack.PostMessageParameters{}
     attachment := slack.Attachment{
         Text:       "Would you like to see the most recent scores?",
         CallbackID: fmt.Sprintf("ask_%s", ev.User),
@@ -176,7 +176,7 @@ func (s *Slack) askIntent(ev *slack.MessageEvent) error {
         ev.Channel,
         ev.User,
         slack.MsgOptionAttachments(params.Attachments...),
-        slack.MsgOptionPostEphemeralParameters(params),
+        slack.MsgOptionPostMessageParameters(params),
     )
     if err != nil {
         return err
