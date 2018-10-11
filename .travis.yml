@@ -13,5 +13,5 @@ script:
 - go get -u github.com/alecthomas/gometalinter
 - gometalinter --install --force
 - gometalinter --vendor --fast --disable=gotype --disable=vetshadow --disable=gas --skip=mock ./...
-- ./codecov.sh
-- go test ./tests -tags=integration
+  #- ./codecov.sh
+  #- go test ./tests -tags=integration
