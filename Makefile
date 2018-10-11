@@ -1,6 +1,12 @@
+BINARYNAME	:= nhlbot
+BINARYENDING	:=
+ifeq ($(OS),Windows_NT)
+	BINARYENDING = .exe
+endif
+
 all: clean
-	go build -v -o nhlbot main.go
+	go build -v -o $(BINARYNAME)$(BINARYENDING) main.go
 
 .PHONY: clean
 clean:
-	rm -rf ./build nhlbot
+	rm -rf ./build $(BINARYNAME)$(BINARYENDING)
